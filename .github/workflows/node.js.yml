@@ -1,7 +1,7 @@
 # This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
 
-name: Node-angular
+name: Node.js CI
 
 on:
   push:
@@ -11,43 +11,66 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     strategy:
       matrix:
-        node-version: [20.x]
-        # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
+        node-version: [ 20.x ]
 
     steps:
-    - name: checkout repository
-      uses: actions/checkout@v4
+      - name: Git checkout
+        uses: actions/checkout@v4
+      
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v3
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    - run: npm ci
-    - run: npm run build --if-present
-    - name: Partage des fichier HTML/CSS/JS
-      uses: actions/upload-artifact@v3
-      with:
-        name: app-ng
-        path: dist/demo-ng-ci/browser
+      - name: Build de Angular
+        run: |
+          npm install
+          npm run build
 
-    - name: Installation Docker BuildX
-      uses: docker/setup-buildx-action@v3
-  
-    - name: Connexion au Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN_GITHUB }}
-  
-    - name: Build de l'image & Push de l'image sur le Docker Hub
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: saousane/ajc-angular-ci:angular
+      - name: Partage des fichiers HTML / CSS / JS
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-ng
+          path: dist/demo-ng-ci/browser
+
+  docker:
+    needs: build
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [ 20.x ]
+
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v4
+
+      - name: Récupération des fichiers HTML / CSS / JS
+        uses: actions/download-artifact@v3
+        with:
+          name: app-ng
+
+      - name: Installation QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Installation Docker BuildX
+        uses: docker/setup-buildx-action@v3
+
+      - name: Connexion au Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN_GITHUB }}
+
+      - name: Build de l'image & Push de l'image sur le Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: saousane/ajc-angular-ci:angular
